@@ -7,9 +7,7 @@ A simple display of holiday lights.
 Purpose
 =======
 
-A simple holiday light display for Christmas/Halloween.  
-
-Another simple, fun project, building on what I did with the [NeoPixel Skull](http://mtmosier.com/80-arduino/75-neopixel-skull).  This one started when I saw an "eyes that follow" optical illusion project on [Instructables](http://www.instructables.com/id/Illuminated-Eyes-That-Follow-Optical-Illusion/) by member jacobjoaquin.  I was really interested in the optical illusion, but decided to put it into an artificial pumpkin instead of a box, to make a jack-o'-lantern.
+A simple holiday light display, it is set up with a Halloween and Christmas modes as well as timed modes, where the lights only activate during specific hours of the day.
 
 
 Prerequisites
