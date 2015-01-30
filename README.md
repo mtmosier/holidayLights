@@ -27,7 +27,7 @@ https://github.com/mtmosier/DS3231
 Hardware
 ========
 
-For the arduino, I used a generic [Arduino Pro Mini compatible microcontroller](http://www.ebay.com/itm/400762710802?_trksid=p2059210.m2749.l2649&ssPageName=STRK%3AMEBIDX%3AIT), controlling a [WS2801 RGB LED Pixel Strand](https://www.adafruit.com/product/738).  An [RTC Module](http://www.ebay.com/itm/400503978923?_trksid=p2059210.m2749.l2649&ssPageName=STRK%3AMEBIDX%3AIT) is also used, but is optional.  See the [schematic](_schematic.png) for more information.
+For the arduino, I used a generic [Arduino Pro Mini compatible microcontroller](http://www.ebay.com/itm/400762710802?_trksid=p2059210.m2749.l2649&ssPageName=STRK%3AMEBIDX%3AIT), controlling a [WS2801 RGB LED Pixel Strand](https://www.adafruit.com/product/738).  An [RTC Module](http://www.ebay.com/itm/400503978923?_trksid=p2059210.m2749.l2649&ssPageName=STRK%3AMEBIDX%3AIT) is also used, but is optional.  See the [schematic](schematic.png) for more information.
 
 
 Installation
