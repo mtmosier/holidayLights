@@ -20,7 +20,9 @@ https://github.com/adafruit/Adafruit-WS2801-Library
 If you choose to use an RTC module as well, you'll want the arduino Time, Time Zone, and RTC libraries.  The RTC library below I forked to add a couple of convenience functions.  If you use the original you will need to alter this program to use the correct getHour and getMonth function formats.
 
 https://github.com/PaulStoffregen/Time
+
 https://github.com/JChristensen/Timezone
+
 https://github.com/mtmosier/DS3231
 
 
