@@ -16,23 +16,28 @@
 #define NUM_PIXELS                          24
 #define MAX_ACTIVE_HALLOWEEN_EYES            3
 #define MAX_ACTIVE_CHRISTMAS_LIGHTS          8
+#define MAX_ACTIVE_VALENTINE_LIGHTS          8
+#define MAX_ACTIVE_PIXELS                    8  // Set to the highest of the above values (for halloween multiply by 2)
 #define SPAWN_TIME_EYES                    250
 #define SPAWN_TIME_XMAS                     75
 #define MAX_REPEATS                          2
 #define MODE_ADDR                            0  // EEPROM address for the mode value
+#define RTC_ACTIVE_ADDR                      1  // EEPROM address for the rtc active value
 #define INT_NUMBER                           0  // Interrupt to use for the button (0 = digital pin 2)
-#define MAX_ACTIVE_PIXELS                    (MAX_ACTIVE_CHRISTMAS_LIGHTS > MAX_ACTIVE_HALLOWEEN_EYES ? MAX_ACTIVE_CHRISTMAS_LIGHTS : MAX_ACTIVE_HALLOWEEN_EYES)
-#define DEBOUNCE_TIME                      150
+#define BUTTON_PIN                           2  // Tied to interrupt above.  Make sure these line up
+#define DEBOUNCE_TIME                      300
+#define RTC_CHANGE_TIME                   1500  //  Time to hold the button to switch into timed mode
+#define MODE_COUNT                           3  //  This is just for convience.  Makes adding modes a little easier
 
 #ifdef USE_RTC
 #define START_TIME_HALLOWEEN_EYES_HOUR      17
 #define START_TIME_HALLOWEEN_EYES_MINUTE     0
 #define END_TIME_HALLOWEEN_EYES_HOUR         7
 #define END_TIME_HALLOWEEN_EYES_MINUTE       0
-#define START_TIME_CHRISTMAS_LIGHTS_HOUR     8
-#define START_TIME_CHRISTMAS_LIGHTS_MINUTE   0
-#define END_TIME_CHRISTMAS_LIGHTS_HOUR       1
-#define END_TIME_CHRISTMAS_LIGHTS_MINUTE     0
+#define START_TIME_GENERAL_HOUR              8
+#define START_TIME_GENERAL_MINUTE            0
+#define END_TIME_GENERAL_HOUR                1
+#define END_TIME_GENERAL_MINUTE              0
 
 
 //  Time zone setup
@@ -51,7 +56,10 @@ Adafruit_WS2801 strip = Adafruit_WS2801(NUM_PIXELS, DATA_PIN, CLOCK_PIN);
 
 
 volatile int mode = 0;
+volatile boolean rtcActive = false;
 volatile boolean updateMode = false;
+volatile int lastButtonState = LOW;
+volatile int buttonState = LOW;
 volatile unsigned long lastDebounceTime = 0;
 unsigned long lastMillis = 0;
 
@@ -62,6 +70,7 @@ unsigned long lastMillis = 0;
 
 void spawnHalloweenEyes();
 void spawnChistmasLights();
+void spawnValentinesDayLights();
 boolean checkModeTime();
 void modeTransition();
 void buttonPress();
@@ -219,9 +228,9 @@ class FadePixels {
 			_repeatCount = 0;
 			_repeatReady = false;
 
-			_color._r = random(_redMin, _redMax);
-			_color._g = random(_greenMin, _greenMax);
-			_color._b = random(_blueMin, _blueMax);
+			_color._r = random(_redMin, _redMax + 1);
+			_color._g = random(_greenMin, _greenMax + 1);
+			_color._b = random(_blueMin, _blueMax + 1);
 			_color._intensity = 0;
 			_step = random(stepMin, stepMax);
 			_cooldownTime = random(cdMin, cdMax);
@@ -377,15 +386,17 @@ void setup()
 #endif
 
 	mode = EEPROM.read(MODE_ADDR);
-#ifdef USE_RTC
-	if (mode > 3) {
-#else
-	if (mode > 1) {
-#endif
+	if (mode >= MODE_COUNT) {
 		mode = 0;
 	}
 
-	attachInterrupt(INT_NUMBER, buttonPress, RISING);
+#ifdef USE_RTC
+	rtcActive = (EEPROM.read(RTC_ACTIVE_ADDR) == 1);
+#else
+	rtcActive = false;
+#endif
+
+	attachInterrupt(INT_NUMBER, buttonPress, CHANGE);
 
 
 	// initialize the strip
@@ -394,10 +405,12 @@ void setup()
 
 	for (uint8_t i = 0; i < MAX_ACTIVE_PIXELS; i++) {
 		pixels[i].setPixelObj(&strip);
-		if ((mode == 0 || mode == 2) && i < MAX_ACTIVE_HALLOWEEN_EYES) {
+		if (mode == 0 && i < MAX_ACTIVE_HALLOWEEN_EYES) {
 			pixels[i].setRedBounds(150, 255);
 			pixels[i].setGreenBounds(0, 100);
 			pixels[i].setBlueBounds(0, 0);
+		} else if (mode == 2 && i < MAX_ACTIVE_VALENTINE_LIGHTS) {
+			pixels[i].setRedBounds(255, 255);
 		}
 	}
 }
@@ -413,10 +426,12 @@ void loop()
 		pixels[i].update();
 	}
 
-	if (mode == 0 || mode == 2) {
+	if (mode == 0) {
 		spawnHalloweenEyes();
-	} else {
+	} else if (mode == 1) {
 		spawnChistmasLights();
+	} else if (mode == 2) {
+		spawnValentinesDayLights();
 	}
 }
 
@@ -538,44 +553,91 @@ spawnChistmasLights()
 }
 
 
+void
+spawnValentinesDayLights()
+{
+	uint8_t color = 0;
+
+	if (lastMillis > millis())  lastMillis = millis();
+	if (millis() - lastMillis > SPAWN_TIME_XMAS) {
+		if (checkModeTime()) {
+			//  20% chance to spawn a new light each time through
+			//  Only one light can be spawned at a time
+			if (random(0, 5) == 1) {
+				uint8_t nextLightId = 255;
+				for (uint8_t i = 0; i < MAX_ACTIVE_CHRISTMAS_LIGHTS; i++) {
+					if (pixels[i]._ready) {
+						nextLightId = i;
+						break;
+					}
+				}
+
+				if (nextLightId != 255) {
+					uint8_t newPos = 255;
+
+					while (newPos == 255) {
+						newPos = random(0, NUM_PIXELS / 2) * 2;
+
+						for (uint8_t i = 0; i < MAX_ACTIVE_CHRISTMAS_LIGHTS; i++) {
+							if (!pixels[i].pixelIsAvailable(newPos, 1)) {
+								newPos = 255;
+								break;
+							}
+						}
+					}
+
+					color = random(0, 225);
+					pixels[nextLightId].setGreenBounds(color, color);
+					pixels[nextLightId].setBlueBounds(color, color);
+					pixels[nextLightId].reset();
+					pixels[nextLightId].setPixels(1, newPos);
+					pixels[nextLightId].start();
+				}
+			}
+		}
+
+		lastMillis = millis();
+	}
+}
+
+
 boolean
 checkModeTime()
 {
 	boolean rtnVal = true;
 
 #ifdef USE_RTC
-	if (mode == 2) {
+	if (rtcActive) {
 		time_t local = tz.toLocal(now());
 		int h = hour(local);
 		int m = minute(local);
 
-		if (h == START_TIME_HALLOWEEN_EYES_HOUR && m < START_TIME_HALLOWEEN_EYES_MINUTE) {
-			rtnVal = false;
-		} else if (h == END_TIME_HALLOWEEN_EYES_HOUR && m > END_TIME_HALLOWEEN_EYES_MINUTE) {
-			rtnVal = false;
-		} else if (START_TIME_HALLOWEEN_EYES_HOUR > END_TIME_HALLOWEEN_EYES_HOUR) {
-			if (h > END_TIME_HALLOWEEN_EYES_HOUR && h < START_TIME_HALLOWEEN_EYES_HOUR) {
+		if (mode == 0) {
+			if (h == START_TIME_HALLOWEEN_EYES_HOUR && m < START_TIME_HALLOWEEN_EYES_MINUTE) {
+				rtnVal = false;
+			} else if (h == END_TIME_HALLOWEEN_EYES_HOUR && m > END_TIME_HALLOWEEN_EYES_MINUTE) {
+				rtnVal = false;
+			} else if (START_TIME_HALLOWEEN_EYES_HOUR > END_TIME_HALLOWEEN_EYES_HOUR) {
+				if (h > END_TIME_HALLOWEEN_EYES_HOUR && h < START_TIME_HALLOWEEN_EYES_HOUR) {
+					rtnVal = false;
+				}
+			} else if (h > END_TIME_HALLOWEEN_EYES_HOUR || h < START_TIME_HALLOWEEN_EYES_HOUR) {
 				rtnVal = false;
 			}
-		} else if (h > END_TIME_HALLOWEEN_EYES_HOUR || h < START_TIME_HALLOWEEN_EYES_HOUR) {
-			rtnVal = false;
-		}
 
-	} else if (mode == 3) {
-		time_t local = tz.toLocal(now());
-		int h = hour(local);
-		int m = minute(local);
-
-		if (h == START_TIME_CHRISTMAS_LIGHTS_HOUR && m < START_TIME_CHRISTMAS_LIGHTS_MINUTE) {
-			rtnVal = false;
-		} else if (h == END_TIME_CHRISTMAS_LIGHTS_HOUR && m > END_TIME_CHRISTMAS_LIGHTS_MINUTE) {
-			rtnVal = false;
-		} else if (START_TIME_CHRISTMAS_LIGHTS_HOUR > END_TIME_CHRISTMAS_LIGHTS_HOUR) {
-			if (h > END_TIME_CHRISTMAS_LIGHTS_HOUR && h < START_TIME_CHRISTMAS_LIGHTS_HOUR) {
+		} else {
+			//  General case, for any modes without a specific setting
+			if (h == START_TIME_GENERAL_HOUR && m < START_TIME_GENERAL_MINUTE) {
+				rtnVal = false;
+			} else if (h == END_TIME_GENERAL_HOUR && m > END_TIME_GENERAL_MINUTE) {
+				rtnVal = false;
+			} else if (START_TIME_GENERAL_HOUR > END_TIME_GENERAL_HOUR) {
+				if (h > END_TIME_GENERAL_HOUR && h < START_TIME_GENERAL_HOUR) {
+					rtnVal = false;
+				}
+			} else if (h > END_TIME_GENERAL_HOUR || h < START_TIME_GENERAL_HOUR) {
 				rtnVal = false;
 			}
-		} else if (h > END_TIME_CHRISTMAS_LIGHTS_HOUR || h < START_TIME_CHRISTMAS_LIGHTS_HOUR) {
-			rtnVal = false;
 		}
 	}
 #endif
@@ -593,7 +655,7 @@ modeTransition()
 		pixels[i].reset();
 	}
 
-	if (mode == 0 || mode == 2) {
+	if (mode == 0) {
 		for (uint8_t i = 0; i < MAX_ACTIVE_HALLOWEEN_EYES; i++) {
 			pixels[i].setRedBounds(150, 255);
 			pixels[i].setGreenBounds(0, 100);
@@ -605,7 +667,7 @@ modeTransition()
 		}
 		strip.show();
 
-		if (mode == 2) {
+		if (rtcActive) {
 			delay(200);
 
 			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
@@ -622,7 +684,7 @@ modeTransition()
 			delay(500);
 		}
 
-	} else {
+	} else if (mode == 1) {
 		for (uint8_t i = 0; i < NUM_PIXELS; i++) {
 			if (i % 2 == 1) {
 				strip.setPixelColor(i, 0x00FF00);
@@ -632,7 +694,7 @@ modeTransition()
 		}
 		strip.show();
 
-		if (mode == 3) {
+		if (rtcActive) {
 			delay(200);
 
 			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
@@ -652,6 +714,45 @@ modeTransition()
 		} else {
 			delay(500);
 		}
+
+	} else if (mode == 2) {
+		for (uint8_t i = 0; i < MAX_ACTIVE_VALENTINE_LIGHTS; i++) {
+			pixels[i].setRedBounds(255, 255);
+		}
+
+		for (uint8_t i = 0; i < NUM_PIXELS; i++) {
+			if (i % 3 == 1) {
+				strip.setPixelColor(i, 0xFF0000);
+			} else if (i % 3 == 2) {
+				strip.setPixelColor(i, 0xFF7F7F);
+			} else {
+				strip.setPixelColor(i, 0xFFFFFF);
+			}
+		}
+		strip.show();
+
+		if (rtcActive) {
+			delay(200);
+
+			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
+				strip.setPixelColor(i, 0x000000);
+			}
+			strip.show();
+			delay(100);
+			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
+				if (i % 3 == 1) {
+					strip.setPixelColor(i, 0xFF0000);
+				} else if (i % 3 == 2) {
+					strip.setPixelColor(i, 0xFF7F7F);
+				} else {
+					strip.setPixelColor(i, 0xFFFFFF);
+				}
+			}
+			strip.show();
+			delay(200);
+		} else {
+			delay(500);
+		}
 	}
 
 	for (uint8_t i = 0; i < NUM_PIXELS; i++) {
@@ -664,19 +765,42 @@ modeTransition()
 void
 buttonPress()
 {
-	if (lastDebounceTime > millis())  lastDebounceTime = millis();
-	if (millis() - lastDebounceTime > DEBOUNCE_TIME) {
-		updateMode = true;
-		mode++;
-#ifdef USE_RTC
-		if (mode > 3) {
-#else
-		if (mode > 1) {
-#endif
-			mode = 0;
-		}
+	unsigned long curTime = millis();
+	int curButtonState = digitalRead(BUTTON_PIN);
 
-		EEPROM.write(MODE_ADDR, mode);
-		lastDebounceTime = millis();
+	if (lastDebounceTime > curTime)  lastDebounceTime = curTime;
+
+	if (curTime - lastDebounceTime <= DEBOUNCE_TIME) {
+		lastDebounceTime = curTime;
+		return;
 	}
+
+
+	if (lastButtonState == HIGH) {
+#ifdef USE_RTC
+		if (curTime - lastDebounceTime > RTC_CHANGE_TIME) {
+			rtcActive = rtcActive ? false : true;
+			updateMode = true;
+		} else {
+#endif
+			updateMode = true;
+			mode++;
+
+			if (mode >= MODE_COUNT) {
+				mode = 0;
+			}
+#ifdef USE_RTC
+		}
+#endif
+	}
+
+
+	if (updateMode) {
+		EEPROM.write(MODE_ADDR, mode);
+		EEPROM.write(RTC_ACTIVE_ADDR, rtcActive ? 1 : 0);
+	}
+
+	lastButtonState = curButtonState;
+	lastDebounceTime = curTime;
 }
+
