@@ -7,7 +7,7 @@ A simple display of holiday lights.
 Purpose
 =======
 
-A simple holiday light display, it is set up with a Halloween and Christmas modes as well as timed modes, where the lights only activate during specific hours of the day.
+A simple holiday light display, it is set up with Halloween, Christmas and Valentine's day modes as well as timed modes, where the lights only activate during specific hours of the day.
 
 
 Prerequisites
