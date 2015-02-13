@@ -29,7 +29,7 @@
 #define BUTTON_PIN                           2  // Tied to interrupt above.  Make sure these line up
 #define DEBOUNCE_TIME                      300
 #define RTC_CHANGE_TIME                   1500  //  Time to hold the button to switch into timed mode
-#define MODE_COUNT                           3  //  This is just for convience.  Makes adding modes a little easier
+#define MODE_COUNT                           3
 
 #ifdef USE_RTC
 #define START_TIME_HALLOWEEN_EYES_HOUR      17
@@ -52,8 +52,36 @@ DS3231 clock;
 #endif
 
 
+typedef struct
+{
+	uint8_t mode;
+	uint32_t colors[NUM_PIXELS];
+} ColorMap;
 
-Adafruit_WS2801 strip = Adafruit_WS2801(NUM_PIXELS, DATA_PIN, CLOCK_PIN);
+
+const ColorMap transitionColors[MODE_COUNT] = {
+	{ 0,
+		{ 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00,
+		  0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00,
+		  0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00,
+		  0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00, 0xFF7F00
+		}
+	},
+	{ 1,
+		{ 0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000,
+		  0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000,
+		  0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000,
+		  0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000, 0x00FF00, 0xFF0000
+		}
+	},
+	{ 2,
+		{ 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFF0000, 0xFFFFFF, 0xFFFFFF,
+		  0xFFFFFF, 0xFFFFFF, 0xFF0000, 0xFF0000, 0xFF0000, 0xFF0000,
+		  0xFFFFFF, 0xFF0000, 0xFF0000, 0xFF0000, 0xFF0000, 0xFF0000,
+		  0xFFFFFF, 0xFF0000, 0xFFFFFF, 0xFFFFFF, 0xFF0000, 0xFFFFFF
+		}
+	}
+};
 
 
 
@@ -66,8 +94,10 @@ volatile unsigned long lastDebounceTime = 0;
 unsigned long lastMillis = 0;
 
 
+Adafruit_WS2801 strip = Adafruit_WS2801(NUM_PIXELS, DATA_PIN, CLOCK_PIN);
 
 FadePixels pixels[MAX_ACTIVE_PIXELS];
+
 
 void setup() 
 {
@@ -354,6 +384,7 @@ modeTransition()
 {
 	updateMode = false;
 
+	//  Set up the pixels
 	for (uint8_t i = 0; i < MAX_ACTIVE_PIXELS; i++) {
 		pixels[i].reset();
 	}
@@ -365,96 +396,39 @@ modeTransition()
 			pixels[i].setBlueBounds(0, 0);
 		}
 
-		for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-			strip.setPixelColor(i, 0xFF7F00);
-		}
-		strip.show();
-
-		if (rtcActive) {
-			delay(200);
-
-			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-				strip.setPixelColor(i, 0x000000);
-			}
-			strip.show();
-			delay(100);
-			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-				strip.setPixelColor(i, 0xFF7F00);
-			}
-			strip.show();
-			delay(200);
-		} else {
-			delay(500);
-		}
-
-	} else if (mode == 1) {
-		for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-			if (i % 2 == 1) {
-				strip.setPixelColor(i, 0x00FF00);
-			} else {
-				strip.setPixelColor(i, 0xFF0000);
-			}
-		}
-		strip.show();
-
-		if (rtcActive) {
-			delay(200);
-
-			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-				strip.setPixelColor(i, 0x000000);
-			}
-			strip.show();
-			delay(100);
-			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-				if (i % 2 == 1) {
-					strip.setPixelColor(i, 0xFF0000);
-				} else {
-					strip.setPixelColor(i, 0x00FF00);
-				}
-			}
-			strip.show();
-			delay(200);
-		} else {
-			delay(500);
-		}
-
 	} else if (mode == 2) {
 		for (uint8_t i = 0; i < MAX_ACTIVE_VALENTINE_LIGHTS; i++) {
 			pixels[i].setRedBounds(255, 255);
 		}
+	}
 
-		for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-			if (i % 3 == 1) {
-				strip.setPixelColor(i, 0xFF0000);
-			} else if (i % 3 == 2) {
-				strip.setPixelColor(i, 0xFF7F7F);
-			} else {
-				strip.setPixelColor(i, 0xFFFFFF);
-			}
-		}
-		strip.show();
 
-		if (rtcActive) {
-			delay(200);
-
-			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-				strip.setPixelColor(i, 0x000000);
+	//  Display the mode transition
+	for (uint8_t i = 0; i < MODE_COUNT; i++) {
+		if (transitionColors[i].mode == mode) {
+			for (uint8_t j = 0; j < NUM_PIXELS; j++) {
+				strip.setPixelColor(j, transitionColors[i].colors[j]);
 			}
 			strip.show();
-			delay(100);
-			for (uint8_t i = 0; i < NUM_PIXELS; i++) {
-				if (i % 3 == 1) {
-					strip.setPixelColor(i, 0xFF0000);
-				} else if (i % 3 == 2) {
-					strip.setPixelColor(i, 0xFF7F7F);
-				} else {
-					strip.setPixelColor(i, 0xFFFFFF);
+
+			if (rtcActive) {
+				delay(200);
+
+				for (uint8_t j = 0; j < NUM_PIXELS; j++) {
+					strip.setPixelColor(j, 0x000000);
 				}
+				strip.show();
+				delay(100);
+				for (uint8_t j = 0; j < NUM_PIXELS; j++) {
+					strip.setPixelColor(j, transitionColors[i].colors[j]);
+				}
+				strip.show();
+				delay(200);
+			} else {
+				delay(500);
 			}
-			strip.show();
-			delay(200);
-		} else {
-			delay(500);
+
+			break;
 		}
 	}
 
