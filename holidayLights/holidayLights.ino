@@ -17,19 +17,18 @@
 #define CLOCK_PIN                            3
 #define NUM_PIXELS                          24
 #define MAX_ACTIVE_HALLOWEEN_EYES            3
-#define MAX_ACTIVE_CHRISTMAS_LIGHTS          8
-#define MAX_ACTIVE_VALENTINE_LIGHTS          8
+#define MAX_ACTIVE_GENERAL_LIGHTS            8
 #define MAX_ACTIVE_PIXELS                    8  // Set to the highest of the above values (for halloween multiply by 2)
 #define SPAWN_TIME_EYES                    250
-#define SPAWN_TIME_XMAS                     75
+#define SPAWN_TIME_GENERAL                  75
 #define MAX_REPEATS                          2
 #define MODE_ADDR                            0  // EEPROM address for the mode value
 #define RTC_ACTIVE_ADDR                      1  // EEPROM address for the rtc active value
 #define INT_NUMBER                           0  // Interrupt to use for the button (0 = digital pin 2)
 #define BUTTON_PIN                           2  // Tied to interrupt above.  Make sure these line up
-#define DEBOUNCE_TIME                      300
-#define RTC_CHANGE_TIME                   1500  //  Time to hold the button to switch into timed mode
-#define MODE_COUNT                           3
+#define DEBOUNCE_TIME                      200
+#define RTC_CHANGE_TIME                   2000  //  Time to hold the button to switch into timed mode
+#define MODE_COUNT                           4
 
 #ifdef USE_RTC
 #define START_TIME_HALLOWEEN_EYES_HOUR      17
@@ -80,6 +79,13 @@ const ColorMap transitionColors[MODE_COUNT] = {
 		  0xFFFFFF, 0xFF0000, 0xFF0000, 0xFF0000, 0xFF0000, 0xFF0000,
 		  0xFFFFFF, 0xFF0000, 0xFFFFFF, 0xFFFFFF, 0xFF0000, 0xFFFFFF
 		}
+	},
+	{ 3,
+		{ 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00,
+		  0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00,
+		  0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00,
+		  0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00, 0x00FF00
+		}
 	}
 };
 
@@ -97,6 +103,19 @@ unsigned long lastMillis = 0;
 Adafruit_WS2801 strip = Adafruit_WS2801(NUM_PIXELS, DATA_PIN, CLOCK_PIN);
 
 FadePixels pixels[MAX_ACTIVE_PIXELS];
+
+
+
+
+//  Not having these definitions here causes errors when compiling without rtc support
+void buttonPress();
+boolean checkModeTime();
+void modeTransition();
+void spawnHalloweenEyes();
+void spawnChistmasLights();
+void spawnValentinesDayLights();
+void spawnStPatricksLights();
+
 
 
 void setup() 
@@ -136,8 +155,12 @@ void setup()
 			pixels[i].setRedBounds(150, 255);
 			pixels[i].setGreenBounds(0, 100);
 			pixels[i].setBlueBounds(0, 0);
-		} else if (mode == 2 && i < MAX_ACTIVE_VALENTINE_LIGHTS) {
+		} else if (mode == 2 && i < MAX_ACTIVE_GENERAL_LIGHTS) {
 			pixels[i].setRedBounds(255, 255);
+		} else if (mode == 3 && i < MAX_ACTIVE_GENERAL_LIGHTS) {
+			pixels[i].setRedBounds(0, 75);
+			pixels[i].setGreenBounds(200, 255);
+			pixels[i].setBlueBounds(0, 75);
 		}
 	}
 }
@@ -159,6 +182,8 @@ void loop()
 		spawnChistmasLights();
 	} else if (mode == 2) {
 		spawnValentinesDayLights();
+	} else if (mode == 3) {
+		spawnStPatricksLights();
 	}
 }
 
@@ -222,13 +247,13 @@ void
 spawnChistmasLights()
 {
 	if (lastMillis > millis())  lastMillis = millis();
-	if (millis() - lastMillis > SPAWN_TIME_XMAS) {
+	if (millis() - lastMillis > SPAWN_TIME_GENERAL) {
 		if (checkModeTime()) {
 			//  20% chance to spawn a new light each time through
 			//  Only one light can be spawned at a time
 			if (random(0, 5) == 1) {
 				uint8_t nextLightId = 255;
-				for (uint8_t i = 0; i < MAX_ACTIVE_CHRISTMAS_LIGHTS; i++) {
+				for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
 					if (pixels[i]._ready) {
 						nextLightId = i;
 						break;
@@ -241,7 +266,7 @@ spawnChistmasLights()
 					while (newPos == 255) {
 						newPos = random(0, NUM_PIXELS / 2) * 2;
 
-						for (uint8_t i = 0; i < MAX_ACTIVE_CHRISTMAS_LIGHTS; i++) {
+						for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
 							if (!pixels[i].pixelIsAvailable(newPos, 1)) {
 								newPos = 255;
 								break;
@@ -286,13 +311,13 @@ spawnValentinesDayLights()
 	uint8_t color = 0;
 
 	if (lastMillis > millis())  lastMillis = millis();
-	if (millis() - lastMillis > SPAWN_TIME_XMAS) {
+	if (millis() - lastMillis > SPAWN_TIME_GENERAL) {
 		if (checkModeTime()) {
 			//  20% chance to spawn a new light each time through
 			//  Only one light can be spawned at a time
 			if (random(0, 5) == 1) {
 				uint8_t nextLightId = 255;
-				for (uint8_t i = 0; i < MAX_ACTIVE_CHRISTMAS_LIGHTS; i++) {
+				for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
 					if (pixels[i]._ready) {
 						nextLightId = i;
 						break;
@@ -305,7 +330,7 @@ spawnValentinesDayLights()
 					while (newPos == 255) {
 						newPos = random(0, NUM_PIXELS / 2) * 2;
 
-						for (uint8_t i = 0; i < MAX_ACTIVE_CHRISTMAS_LIGHTS; i++) {
+						for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
 							if (!pixels[i].pixelIsAvailable(newPos, 1)) {
 								newPos = 255;
 								break;
@@ -322,6 +347,49 @@ spawnValentinesDayLights()
 
 					pixels[nextLightId].setGreenBounds(color, color);
 					pixels[nextLightId].setBlueBounds(color, color);
+					pixels[nextLightId].reset();
+					pixels[nextLightId].setPixels(1, newPos);
+					pixels[nextLightId].start();
+				}
+			}
+		}
+
+		lastMillis = millis();
+	}
+}
+
+
+void
+spawnStPatricksLights()
+{
+	if (lastMillis > millis())  lastMillis = millis();
+	if (millis() - lastMillis > SPAWN_TIME_GENERAL) {
+		if (checkModeTime()) {
+			//  20% chance to spawn a new light each time through
+			//  Only one light can be spawned at a time
+			if (random(0, 5) == 1) {
+				uint8_t nextLightId = 255;
+				for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
+					if (pixels[i]._ready) {
+						nextLightId = i;
+						break;
+					}
+				}
+
+				if (nextLightId != 255) {
+					uint8_t newPos = 255;
+
+					while (newPos == 255) {
+						newPos = random(0, NUM_PIXELS / 2) * 2;
+
+						for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
+							if (!pixels[i].pixelIsAvailable(newPos, 1)) {
+								newPos = 255;
+								break;
+							}
+						}
+					}
+
 					pixels[nextLightId].reset();
 					pixels[nextLightId].setPixels(1, newPos);
 					pixels[nextLightId].start();
@@ -397,8 +465,15 @@ modeTransition()
 		}
 
 	} else if (mode == 2) {
-		for (uint8_t i = 0; i < MAX_ACTIVE_VALENTINE_LIGHTS; i++) {
+		for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
 			pixels[i].setRedBounds(255, 255);
+		}
+
+	} else if (mode == 3) {
+		for (uint8_t i = 0; i < MAX_ACTIVE_GENERAL_LIGHTS; i++) {
+			pixels[i].setRedBounds(0, 75);
+			pixels[i].setGreenBounds(200, 255);
+			pixels[i].setBlueBounds(0, 75);
 		}
 	}
 
@@ -447,34 +522,29 @@ buttonPress()
 
 	if (lastDebounceTime > curTime)  lastDebounceTime = curTime;
 
-	if (curTime - lastDebounceTime <= DEBOUNCE_TIME) {
-		lastDebounceTime = curTime;
-		return;
-	}
-
-
-	if (lastButtonState == HIGH) {
+	if (curTime - lastDebounceTime > DEBOUNCE_TIME) {
+		if (lastButtonState == HIGH) {
 #ifdef USE_RTC
-		if (curTime - lastDebounceTime > RTC_CHANGE_TIME) {
-			rtcActive = rtcActive ? false : true;
-			updateMode = true;
-		} else {
+			if (curTime - lastDebounceTime > RTC_CHANGE_TIME) {
+				rtcActive = rtcActive ? false : true;
+				updateMode = true;
+			} else {
 #endif
-			updateMode = true;
-			mode++;
+				updateMode = true;
+				mode++;
 
-			if (mode >= MODE_COUNT) {
-				mode = 0;
+				if (mode >= MODE_COUNT) {
+					mode = 0;
+				}
+#ifdef USE_RTC
 			}
-#ifdef USE_RTC
-		}
 #endif
-	}
+		}
 
-
-	if (updateMode) {
-		EEPROM.write(MODE_ADDR, mode);
-		EEPROM.write(RTC_ACTIVE_ADDR, rtcActive ? 1 : 0);
+		if (updateMode) {
+			EEPROM.write(MODE_ADDR, mode);
+			EEPROM.write(RTC_ACTIVE_ADDR, rtcActive ? 1 : 0);
+		}
 	}
 
 	lastButtonState = curButtonState;
